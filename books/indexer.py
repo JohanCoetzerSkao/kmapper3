@@ -244,6 +244,8 @@ def usage(exe):
 
 def main():
     '''Start here.'''
+    LOG_LEVEL = logging.DEBUG
+    logging.basicConfig(level=LOG_LEVEL)
     # Establish database connection
     connection = mariadb.connect(**conn_params)
     # Initialize natural language processing
@@ -252,10 +254,6 @@ def main():
     nltk.download('punkt')
     nltk.download('omw-1.4')
     nltk.download('averaged_perceptron_tagger')
-    # Set up logging
-    # LOG_LEVEL = logging.INFO
-    LOG_LEVEL = logging.DEBUG
-    logging.basicConfig(level=LOG_LEVEL)
     # Get stop words
     stops = set(stopwords.words('english'))
     porter_stemmer = nltk.stem.porter.PorterStemmer()
