@@ -2,7 +2,7 @@
 
 ## Abstract
 
-Auto categorizer to mine and map words in a corpus of web pages. The steps are: 
+Auto categorizer to mine and map words in a corpus of web pages. The steps are:
 
 - crawls and download web pages
 
@@ -53,6 +53,8 @@ Download pages
 
 `./books.sh`
 
+
+`./downloader.py books.toscrape.com`
 
 
 Index pages one at a time
