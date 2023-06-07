@@ -26,4 +26,5 @@ do
     echo "Write $DL_NAME"
     # echo "Run> scrapy fetch --nolog $SITE_URL"
     scrapy fetch --nolog $SITE_URL > $DL_NAME
+    ./indexer.py --debug --url="${SITE_URL}" $DL_NAME
 done
