@@ -59,9 +59,12 @@ Download pages
 
 Index pages one at a time
 
-`./books.py books.toscrape.com/catalogue/scott_pilgrims_precious_little_life_scott_pilgrim_1_987/index.html`
 
+`./indexer.py www.skao.int/en/news/409/un-year-basic-sciences-sustainable-development-officially-launched.html`
 
+Index all pages in directory
+
+`./indexer.py www.skao.int/en/news/`
 
 Index all pages
 

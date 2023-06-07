@@ -6,12 +6,15 @@ rm -rf $BDIR
 mkdir $BDIR
 echo "Write $JFILE"
 scrapy crawl spider -o $JFILE
-SITE="https://www.skao.int/en/news"
+# SITE="https://www.skao.int/en/news"
+SITE="https://www.skao.int"
 
 echo "Read $JFILE"
-cat $JFILE | python -m json.tool | grep -iw "URL" | cut -d: -f2- | while read BURL
+# cat $JFILE | python -m json.tool | grep -iw "URL" | cut -d: -f2- | while read BURL
+cat $JFILE | jq '.[].url' | while read BURL
 do
-    FURL=$(echo $BURL | tr -d ',' | tr -d '"')
+    # FURL=$(echo $BURL | tr -d ',' | tr -d '"')
+    FURL=$(echo $BURL | tr -d '"')
     echo "Download $FURL"
     FPATH=$FURL     # $(echo $BURL | cut -d/ -f4- | tr '-' '_' | tr -d ',' | tr -d '"')
     FNAME=$(basename $FPATH)

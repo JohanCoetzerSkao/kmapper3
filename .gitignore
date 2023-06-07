@@ -1,3 +1,6 @@
 __pycache__
 books/books.toscrape.com/
 books/books.toscrape.com.json
+.kdev4
+kmapper3.kdev4
+.venv

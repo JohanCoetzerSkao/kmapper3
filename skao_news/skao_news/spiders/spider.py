@@ -4,7 +4,13 @@ import scrapy
 class SpiderSpider(scrapy.Spider):
     name = "spider"
     allowed_domains = ["www.skao.int"]
-    start_urls = ["https://www.skao.int/en/news"]
+    start_urls = [
+        "https://www.skao.int/en/news?page=1",
+        "https://www.skao.int/en/news?page=2",
+        "https://www.skao.int/en/news?page=3",
+        "https://www.skao.int/en/news?page=4",
+        "https://www.skao.int/en/news?page=5",
+    ]
 
     def parse(self, response):
         print(response.status)
