@@ -17,49 +17,49 @@ from langdetect import detect, DetectorFactory, lang_detect_exception
 from nltk.corpus import stopwords
 
 # connection parameters
-conn_params= {
-    "user" : "root",
-    "password" : "fubar",
-    "host" : "localhost",
-    "database" : "kmapper3"
+conn_params = {
+    "user": "root",
+    "password": "fubar",
+    "host": "localhost",
+    "database": "kmapper3"
 }
 
 word_senses = {
-    "CC" : "coordinating conjunction",
-    "CD" : "cardinal digit",
-    "DT" : "determiner",
-    "EX" : "existential there (like: 'there is' … think of it like 'there exists')",
-    "FW" : "foreign word",
-    "IN" : "preposition/subordinating conjunction",
-    "JJ" : "adjective – ‘big’",
-    "JJR" : "adjective, comparative – ‘bigger’",
-    "JJS" : "adjective, superlative – ‘biggest’",
-    "LS" : "list marker 1)",
-    "MD" : "modal – could, will",
-    "NN" : "noun, singular ‘- desk’",
-    "NNS" : "noun plural – ‘desks’",
-    "NNP" : "proper noun, singular – ‘Harrison’",
-    "NNPS" : "proper noun, plural – ‘Americans’",
-    "PDT" : "predeterminer – ‘all the kids’",
-    "POS" : "possessive ending parent’s",
-    "PRP" : "personal pronoun –  I, he, she",
-    "PRP$" : "possessive pronoun – my, his, hers",
-    "RB" : "adverb – very, silently,",
-    "RBR" : "adverb, comparative – better",
-    "RBS" : "adverb, superlative – best",
-    "RP" : "particle – give up",
-    "TO" : "– : to go ‘to’ the store.",
-    "UH" : "interjection – errrrrrrrm",
-    "VB" : "verb, base form – take",
-    "VBD" : "verb, past tense – took",
-    "VBG" : "verb, gerund/present participle – taking",
-    "VBN" : "verb, past participle – taken",
-    "VBP" : "verb, sing. present, non-3d – take",
-    "VBZ" : "verb, 3rd person sing. present – takes",
-    "WDT" : "wh-determiner – which",
-    "WP" : "wh-pronoun – who, what",
-    "WP$" : "possessive wh-pronoun, eg - whose",
-    "WRB" : "wh-adverb, eg- where, when",
+    "CC": "coordinating conjunction",
+    "CD": "cardinal digit",
+    "DT": "determiner",
+    "EX": "existential there (like: 'there is' … like 'there exists')",
+    "FW": "foreign word",
+    "IN": "preposition/subordinating conjunction",
+    "JJ": "adjective – ‘big’",
+    "JJR": "adjective, comparative – ‘bigger’",
+    "JJS": "adjective, superlative – ‘biggest’",
+    "LS": "list marker 1)",
+    "MD": "modal – could, will",
+    "NN": "noun, singular ‘- desk’",
+    "NNS": "noun plural – ‘desks’",
+    "NNP": "proper noun, singular – ‘Harrison’",
+    "NNPS": "proper noun, plural – ‘Americans’",
+    "PDT": "predeterminer – ‘all the kids’",
+    "POS": "possessive ending parent’s",
+    "PRP": "personal pronoun –  I, he, she",
+    "PRP$": "possessive pronoun – my, his, hers",
+    "RB": "adverb – very, silently,",
+    "RBR": "adverb, comparative – better",
+    "RBS": "adverb, superlative – best",
+    "RP": "particle – give up",
+    "TO": "–: to go ‘to’ the store.",
+    "UH": "interjection – errrrrrrrm",
+    "VB": "verb, base form – take",
+    "VBD": "verb, past tense – took",
+    "VBG": "verb, gerund/present participle – taking",
+    "VBN": "verb, past participle – taken",
+    "VBP": "verb, sing. present, non-3d – take",
+    "VBZ": "verb, 3rd person sing. present – takes",
+    "WDT": "wh-determiner – which",
+    "WP": "wh-pronoun – who, what",
+    "WP$": "possessive wh-pronoun, eg - whose",
+    "WRB": "wh-adverb, eg- where, when",
 }
 
 
@@ -89,6 +89,7 @@ def get_word_index(db_conn, the_word):
     :param the_word: word to be checked
     :return: word index number
     """
+    logging.debug("Get index for '%s'", the_word)
     cursor = db_conn.cursor()
     sqlstr = f"SELECT word_id FROM words WHERE the_word='{the_word}';"
     logging.debug(sqlstr)
@@ -111,6 +112,7 @@ def set_word_index(db_conn, the_word):
     :param the_word: word to be updated
     :return: word index number
     """
+    logging.debug("Set index for '%s'", the_word)
     cursor = db_conn.cursor()
     sqlstr = f"INSERT INTO words(the_word) VALUES('{the_word}')" \
         " RETURNING word_id;"
@@ -134,10 +136,8 @@ def get_the_word(db_conn, stop_words, wn_lemma, word):
     """
     if len(word) > 1 and word not in stop_words and not word.isnumeric():
         the_word = wn_lemma.lemmatize(word)
-        word_id = get_word_index(db_conn, the_word)
         logging.debug("Word %s lemma : %s", word, the_word)
-        if word_id == 0:
-            word_id = set_word_index(db_conn, the_word)
+        word_id = get_word_index(db_conn, the_word)
         return the_word, nltk.corpus.wordnet.synsets(word), word_id
     return '', None, 0
 
@@ -151,6 +151,8 @@ def set_page_word_index(db_conn, word_id, page_id, word_pos):
     :param page_id: page index number
     :param word_pos: offset in document
     """
+    logging.debug("Set index for word %d, page %d, offset %d",
+                  word_id, page_id, word_pos)
     cursor = db_conn.cursor()
     sqlstr = "INSERT INTO pages_words(word_id, page_id, word_pos)" \
         f" VALUES({word_id}, {page_id}, {word_pos});"
@@ -176,6 +178,10 @@ def get_the_words(the_data):
     return the_words
 
 
+def check_the_noun(word):
+    return
+
+
 def check_the_nouns(words):
     """
     Extract nouns from words.
@@ -194,7 +200,6 @@ def check_the_nouns(words):
             logging.warning("No word sense for %s", val)
             continue
         #
-        # if(val == 'NN' or val == 'NNS' or val == 'NNPS' or val == 'NNP'):
         if val in ('NN', 'NNS', 'NNPS', 'NNP'):
             logging.debug("%s [%s] is a noun", text, val)
             the_nouns.append(text)
@@ -211,6 +216,7 @@ def get_page_index(db_conn, file_name):
     :param file_name: input file name
     :return: page index number
     """
+    logging.debug("Get index for file '%s'", file_name)
     cursor = db_conn.cursor()
     sqlstr = f"SELECT page_id FROM pages WHERE page_file='{file_name}';"
     logging.debug(sqlstr)
@@ -235,6 +241,7 @@ def index_page(db_conn, file_name):
     :param db_conn: database connection handle
     :param file_name: input file name
     """
+    logging.debug("Set index for file '%s'", file_name)
     cursor = db_conn.cursor()
     cursor.execute(
         "INSERT INTO pages(page_file, page_title, page_url)"
@@ -272,6 +279,7 @@ def read_book_data(db_conn, sp_data, stop_words, wn_lemma, bk_idx):
         return keywords, all_data
     the_words = get_the_words(the_data)
     chk_words = []
+    chk_words_data = {}
     word_count = 0
     for the_word in the_words:
         # Removes unwanted characters
@@ -280,7 +288,7 @@ def read_book_data(db_conn, sp_data, stop_words, wn_lemma, bk_idx):
         word = the_word.replace('“', '')\
             .replace('—', '')\
             .replace('‘', '')\
-            .replace('…', '')
+            .replace('…', '').strip()
         word_count += 1
         all_data += word
         all_data += " "
@@ -289,17 +297,23 @@ def read_book_data(db_conn, sp_data, stop_words, wn_lemma, bk_idx):
         )
         if wrd:
             logging.debug("S> %s [%s] %s", word, wrd, syns)
-            set_page_word_index(db_conn, word_id, bk_idx, word_count)
             chk_words.append(wrd)
+            chk_words_data[wrd] = (word_id, word_count)
         else:
             logging.debug("S> %s", word)
     the_nouns = check_the_nouns(chk_words)
     for noun in the_nouns:
+        word_id, word_count = chk_words_data[noun]
+        if word_id == 0:
+            word_id = set_word_index(db_conn, noun)
+        logging.info("Index '%s' : %d %d", noun, word_id, word_count)
+        set_page_word_index(db_conn, word_id, bk_idx, word_count)
         if noun not in keywords:
             keywords[noun] = 1
             logging.debug("Add : %s", noun)
         else:
             keywords[noun] += 1
+    logging.debug("(%s)", all_data)
     return keywords, all_data
 
 
@@ -310,11 +324,54 @@ def clear_pages_words(db_conn, bk_idx):
     :param db_conn: database connection handle
     :bk_idx: page index number
     """
+    logging.info("Clear index for page %d", bk_idx)
     cursor = db_conn.cursor()
     sqlstr = f"DELETE FROM pages_words WHERE page_id={bk_idx};"
     logging.debug(sqlstr)
     cursor.execute(sqlstr)
     db_conn.commit()
+
+
+def clear_all(db_conn):
+    """
+    Clear indexes.
+
+    :param db_conn: database connection handle
+    :return: zero
+    """
+    logging.info("Clear all indexes")
+    cursor = db_conn.cursor()
+    for sqlstr in ["DELETE FROM pages_words;",
+                   "DELETE FROM pages;",
+                   "DELETE FROM words;"]:
+        logging.debug(sqlstr)
+        cursor.execute(sqlstr)
+    db_conn.commit()
+    return 0
+
+
+def get_stats(db_conn):
+    """
+    Statistics of indexes.
+
+    :param db_conn: database connection handle
+    :return: zero
+    """
+    logging.debug("Get table statistics")
+    cursor = db_conn.cursor()
+    sqlstrs = {"pages": "SELECT count(page_id) FROM pages;",
+               "words": "SELECT count(word_id) FROM words;",
+               "pages_words": "SELECT count(word_pos) FROM pages_words;"}
+    # pylint: disable-next=consider-using-dict-items
+    for table_name in sqlstrs:
+        sqlstr = sqlstrs[table_name]
+        logging.debug(sqlstr)
+        cursor.execute(sqlstr)
+        row = cursor.fetchone()
+        row_count = int(row[0])
+        print(f"Table {table_name} has {row_count} rows")
+    cursor.close()
+    return 0
 
 
 # pylint: disable-next=too-many-arguments,too-many-locals
@@ -349,20 +406,24 @@ def read_book(db_conn, stop_words, wn_lemma, file_name, bk_idx,
     keywords = {}
     all_data = ""
     for sp_data in soup2:
-        keywords, all_data = read_book_data(
+        keywords, book_data = read_book_data(
             db_conn, sp_data, stop_words, wn_lemma, bk_idx
         )
+        all_data += book_data
     logging.info("Found %d keywords", len(keywords))
+    # pylint: disable-next=consider-using-dict-items
     for keyword in keywords:
         logging.debug("%3d : %s", keywords[keyword], keyword)
-    if not all_data:
+    if all_data:
+        logging.debug("TEXT [%s]", all_data)
+        sqlstr = f"UPDATE pages SET page_title='{bk_title}'," \
+            f" page_text='{all_data}'" \
+            f" WHERE page_id={bk_idx};"
+        cursor = db_conn.cursor()
+        logging.debug(sqlstr)
+        cursor.execute(sqlstr)
+    else:
         logging.warning("No data extracted")
-    sqlstr = f"UPDATE pages SET page_title='{bk_title}'," \
-        " page_text='{all_data}'" \
-        f"WHERE page_id={bk_idx};"
-    cursor = db_conn.cursor()
-    logging.debug(sqlstr)
-    cursor.execute(sqlstr)
     cursor.close()
     db_conn.commit()
 
@@ -376,17 +437,15 @@ def list_words(db_conn, wc_min, wc_max):
     :param wc_max: maximum word count
     :return: zero
     """
+    logging.debug("List words: minimum %d, maximum %d", wc_min, wc_max)
     cursor = db_conn.cursor()
-    sqlstr = "select words.the_word, count(pages_words.word_pos) as word_count" \
+    sqlstr = "select words.the_word, count(pages_words.word_pos)" \
+        " as word_count" \
         " from words, pages_words" \
         " where pages_words.word_id = words.word_id" \
         " group by pages_words.word_pos"
     logging.debug(sqlstr)
     cursor.execute(sqlstr)
-    # row = cursor.fetchone()
-    # while row is not None:
-    #     print(*row, sep=' ')
-    #     row = cursor.fetchone()
     for word, w_count in cursor:
         show_it = True
         if wc_min and w_count <= wc_min:
@@ -407,6 +466,7 @@ def find_words(db_conn, f_word):
     :param f_word: word to search for
     :return: zero
     """
+    logging.debug("Find word '%s'", f_word)
     cursor = db_conn.cursor()
     sqlstr = "select words.the_word, " \
         " pages.page_title," \
@@ -417,10 +477,6 @@ def find_words(db_conn, f_word):
         f" and words.the_word='{f_word}'"
     logging.debug(sqlstr)
     cursor.execute(sqlstr)
-    # row = cursor.fetchone()
-    # while row is not None:
-    #     print(*row, sep=' ')
-    #     row = cursor.fetchone()
     for word, title, url in cursor:
         print(f"{word} : {title} [{url}]")
     cursor.close()
@@ -437,6 +493,7 @@ def read_files(db_conn, file_name, bk_xpath, bk_xclass):
     :param bk_xclass: class associated with Xpath
     :return: zero
     """
+    logging.debug("Read files: %s", file_name)
     # Initialize natural language processing
     nltk.download('wordnet')
     nltk.download('stopwords')
@@ -445,7 +502,9 @@ def read_files(db_conn, file_name, bk_xpath, bk_xclass):
     nltk.download('averaged_perceptron_tagger')
     # Get stop words
     stop_words = set(stopwords.words('english'))
-    _porter_stemmer = nltk.stem.porter.PorterStemmer()
+    logging.info("Loaded %d stop words", len(stop_words))
+    logging.debug("STOP: %s", stop_words)
+    _porter_stemmer = nltk.stem.porter.PorterStemmer()  # noqa: F841
     wn_lemma = nltk.stem.WordNetLemmatizer()
     if '*' in file_name:
         logging.info("Read path %s", file_name)
@@ -457,10 +516,8 @@ def read_files(db_conn, file_name, bk_xpath, bk_xclass):
             bk_idx = get_page_index(db_conn, f_name)
             if bk_idx <= 0:
                 bk_idx = index_page(db_conn, f_name)
-            read_book(
-                db_conn, stop_words, wn_lemma, f_name, bk_idx, bk_xpath,
-                bk_xclass
-            )
+            read_book(db_conn, stop_words, wn_lemma, f_name, bk_idx, bk_xpath,
+                      bk_xclass)
             n_files += 1
         logging.info("Read %d files", n_files)
     elif os.path.isfile(file_name):
@@ -486,10 +543,8 @@ def read_files(db_conn, file_name, bk_xpath, bk_xclass):
             bk_idx = get_page_index(db_conn, f_name)
             if bk_idx <= 0:
                 bk_idx = index_page(db_conn, f_name)
-            read_book(
-                db_conn, stop_words, wn_lemma, f_name, bk_idx, bk_xpath,
-                bk_xclass
-            )
+            read_book(db_conn, stop_words, wn_lemma, f_name, bk_idx, bk_xpath,
+                      bk_xclass)
             n_files += 1
         logging.info("Read %d files", n_files)
     else:
@@ -506,6 +561,7 @@ def set_page_title(db_conn, file_name, f_title):
     :param f_title: page title
     :return: zero
     """
+    logging.debug("Set title to '%s'", f_title)
     cursor = db_conn.cursor()
     bk_idx = get_page_index(db_conn, file_name)
     if bk_idx <= 0:
@@ -527,6 +583,7 @@ def set_page_url(db_conn, file_name, f_url):
     :param f_url: URL of original page
     :return: zero
     """
+    logging.debug("Set URL to '%s'", f_url)
     cursor = db_conn.cursor()
     bk_idx = get_page_index(db_conn, file_name)
     if bk_idx <= 0:
@@ -539,9 +596,7 @@ def set_page_url(db_conn, file_name, f_url):
     return 0
 
 
-# pylint: disable-next=too-many-arguments
-def run_index(db_conn, wc_min, wc_max, f_word, f_url, bk_xpath, bk_xclass,
-              lst_wrds, remainder):
+def run_index(db_conn, idx_actn, remainder):
     """
     Run the thing.
 
@@ -556,18 +611,38 @@ def run_index(db_conn, wc_min, wc_max, f_word, f_url, bk_xpath, bk_xclass,
     :param remainder: list of arguments, used for file name
     :return: zero
     """
-    if lst_wrds:
-        r_val = list_words(db_conn, wc_min, wc_max)
-    elif f_word:
-        r_val = find_words(db_conn, f_word)
-    elif f_url:
+    logging.debug("Run %s", idx_actn)
+    if idx_actn["clr_idx"]:
+        r_val = clear_all(db_conn)
+    elif idx_actn["lst_wrds"]:
+        r_val = list_words(db_conn, idx_actn["wc_min"], idx_actn["wc_max"])
+    elif idx_actn["lst_stat"]:
+        r_val = get_stats(db_conn)
+    elif idx_actn["f_word"]:
+        r_val = find_words(db_conn, idx_actn["f_word"])
+    elif idx_actn["f_url"]:
         file_name = remainder[0]
-        r_val = set_page_url(db_conn, file_name, f_url)
+        r_val = set_page_url(db_conn, file_name, idx_actn["f_url"])
     else:
         # Analyze files
-        file_name = remainder[0]
-        r_val = read_files(db_conn, file_name, bk_xpath, bk_xclass)
+        try:
+            file_name = remainder[0]
+        except IndexError:
+            logging.error("File name or path not set")
+            return 1
+        r_val = read_files(db_conn, file_name, idx_actn["bk_xpath"],
+                           idx_actn["bk_xclass"])
     return r_val
+
+
+def usage_short(f_exe, h_msg):
+    """
+    Short help message.
+
+    :param f_exe: executable file name
+    """
+    print(f"{h_msg}, for more information:")
+    print(f"\t{os.path.basename(f_exe)} -h|--help")
 
 
 def usage(f_exe):
@@ -578,7 +653,7 @@ def usage(f_exe):
     """
     f_exe = os.path.basename(f_exe)
     print("Usage:")
-    print(f"\t{f_exe} --list- [--min=<MIN>] [--max=<MAX>]")
+    print(f"\t{f_exe} --list [--min=<MIN>] [--max=<MAX>]")
     print(f"\t{f_exe} --url=<URL> <FILE>")
     print(f"\t{f_exe} [--path=<XPATH>] [--class=<CLASS>] <FILE|PATH>")
     print("where:")
@@ -587,10 +662,13 @@ def usage(f_exe):
     print("\t--url=<URL>        URL that was crawled")
     print("\t--path=<XPATH>     Xpath for selection of text")
     print("\t--class=<CLASS>    used with Xpath")
+    print("\t--clear            delete all indexes")
+    print("\t--stats            statistics of indexes")
     print("\t<FILE>             file name")
     print("\t<PATH>             directory name")
 
 
+# pylint: disable-next=too-many-branches
 def main():
     """
     Start here.
@@ -598,45 +676,58 @@ def main():
     log_level = logging.WARNING
     # Establish database connection
     db_conn = mariadb.connect(**conn_params)
-    options, remainder = getopt.gnu_getopt(
-        sys.argv[1:],
-        "hlid:cfpu:",
-        ["path=","class=","url=","min=","max=","find=","list","info","debug"]
-    )
-    f_word = None
-    wc_min = 0
-    wc_max = 0
-    lst_wrds = False
-    f_url = None
-    bk_xpath = "p"
-    bk_xclass = None
+    try:
+        options, remainder = getopt.gnu_getopt(
+            sys.argv[1:],
+            "hlid:cfpu:",
+            ["path=", "class=", "url=", "min=", "max=", "find=", "list",
+             "clear", "stats", "info", "debug"]
+        )
+    except getopt.GetoptError as opt_err:
+        usage_short(sys.argv[0], str(opt_err))
+        return 1
+    idx_actn = {"lst_wrds": False,
+                "clr_idx": False,
+                "lst_stat": False,
+                "wc_min": 0,
+                "wc_max": 0,
+                "f_word": None,
+                "f_url": None,
+                "bk_xpath": "p",
+                "bk_xclass": None,
+                }
     for opt, arg in options:
         if opt == '-h':
             usage(sys.argv[0])
             sys.exit(1)
         elif opt in ("-p", "--path"):
-            bk_xpath = arg
+            idx_actn["bk_xpath"] = arg
         elif opt in ("-c", "--class"):
-            bk_xclass = arg
+            idx_actn["bk_xclass"] = arg
         elif opt in ("-f", "--find"):
-            f_word = arg
+            idx_actn["f_word"] = arg
         elif opt in ("-u", "--url"):
-            f_url = arg
+            idx_actn["f_url"] = arg
         elif opt == "--min":
-            wc_min = int(arg)
+            idx_actn["wc_min"] = int(arg)
         elif opt == "--max":
-            wc_max = int(arg)
+            idx_actn["wc_max"] = int(arg)
         elif opt in ("-l", "--list"):
-            lst_wrds = True
+            idx_actn["lst_wrds"] = True
+        elif opt == "--stats":
+            idx_actn["lst_stat"] = True
+        elif opt == "--clear":
+            idx_actn["clr_idx"] = True
         elif opt in ("-i", "--info"):
             log_level = logging.INFO
         elif opt in ("-d", "--debug"):
             log_level = logging.DEBUG
         else:
-            print("Unused option {opt} ({arg})")
+            usage_short(sys.argv[0], f"Unused option {opt} ({arg})")
+            return 1
     logging.basicConfig(level=log_level)
-    r_val = run_index(db_conn, wc_min, wc_max, f_word, f_url, bk_xpath,
-                      bk_xclass, lst_wrds, remainder)
+    # Run this thing
+    r_val = run_index(db_conn, idx_actn, remainder)
     # Close database
     db_conn.close()
     return r_val
@@ -645,6 +736,7 @@ def main():
 if __name__ == "__main__":
     # Check if file was specified
     if len(sys.argv) <= 1:
-        usage(sys.argv[0])
+        usage_short(sys.argv[0], "Incorrect paramaters")
+        sys.exit(1)
     M_RV = main()
     sys.exit(M_RV)

@@ -12,7 +12,8 @@ all:
 	python -m py_compile $(PY_FILES)
 
 lint:
-	pylint $(PY_FILES)
+	flake8 --exit-zero $(PY_FILES)
+	pylint --exit-zero $(PY_FILES)
 
 clean:
 	@find . -name "*.pyc" -print -delete
