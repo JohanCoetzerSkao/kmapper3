@@ -601,13 +601,7 @@ def run_index(db_conn, idx_actn, remainder):
     Run the thing.
 
     :param db_conn: database connection handle
-    :param wc_min: minimum word count
-    :param wc_max: maximum word count
-    :param f_word: word to search for
-    :param f_url: URL of original page
-    :param bk_xpath: Xpath to select from body
-    :param bk_xclass: class associated with Xpath
-    :param lst_wrds: flag to list words
+    :param idx_actn: parameters from command line
     :param remainder: list of arguments, used for file name
     :return: zero
     """
@@ -674,8 +668,6 @@ def main():
     Start here.
     """
     log_level = logging.WARNING
-    # Establish database connection
-    db_conn = mariadb.connect(**conn_params)
     try:
         options, remainder = getopt.gnu_getopt(
             sys.argv[1:],
@@ -726,6 +718,8 @@ def main():
             usage_short(sys.argv[0], f"Unused option {opt} ({arg})")
             return 1
     logging.basicConfig(level=log_level)
+    # Establish database connection
+    db_conn = mariadb.connect(**conn_params)
     # Run this thing
     r_val = run_index(db_conn, idx_actn, remainder)
     # Close database
