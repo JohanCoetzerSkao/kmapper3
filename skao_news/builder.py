@@ -17,6 +17,7 @@ import nltk
 import mariadb
 
 HTML4_DOCTYPE = '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd"l>'
+HTML_DIR = "/var/www/html/skao_news"
 
 # connection parameters
 conn_params = {
@@ -25,6 +26,39 @@ conn_params = {
     "host": "localhost",
     "database": "kmapper3"
 }
+
+
+def get_words_list(db_conn, wc_min=0, wc_max=0):
+    """
+    Display index for words.
+
+    :param db_conn: database connection handle
+    :param wc_min: minimum word count
+    :param wc_max: maximum word count
+    :return: list of words
+    """
+    logging.debug("List words: minimum %d, maximum %d", wc_min, wc_max)
+    cursor = db_conn.cursor()
+    sqlstr = "select words.the_word, count(pages_words.word_pos)" \
+        " as word_count" \
+        " from words, pages_words" \
+        " where pages_words.word_id = words.word_id" \
+        " group by pages_words.word_pos"
+    logging.debug(sqlstr)
+    words = []
+    cursor.execute(sqlstr)
+    for word, w_count in cursor:
+        show_it = True
+        if wc_min and w_count <= wc_min:
+            show_it = False
+        if wc_max and w_count >= wc_max:
+            show_it = False
+        if show_it:
+            print(f"{int(w_count):3d} : {word}")
+            logging.info("Index %d (%d)", word, w_count)
+            words.append(word)
+    cursor.close()
+    return words
 
 
 def get_page_titles(db_conn):
@@ -80,7 +114,52 @@ def print_word_pages(pages):
     return 0
 
 
-def write_word_pages(pages, output_path, link_path, index_path="."):
+def clear_page_words(db_conn, bk_idx):
+    """
+    Clear indexed words.
+
+    :param db_conn: database connection handle
+    :bk_idx: page index number
+    """
+    logging.info("Clear words for page %d", bk_idx)
+    cursor = db_conn.cursor()
+    sqlstr = f"DELETE FROM page_words WHERE page_id={bk_idx};"
+    logging.debug(sqlstr)
+    cursor.execute(sqlstr)
+    db_conn.commit()
+
+
+def get_page_index(db_conn, file_name):
+    """
+    Check index for page.
+
+    :param db_conn: database connection handle
+    :param file_name: input file name
+    :return: page index number
+    """
+    logging.debug("Get index for file '%s'", file_name)
+    cursor = db_conn.cursor()
+    sqlstr = "SELECT page_id, page_url" \
+        f" FROM pages WHERE page_file='{file_name}';"
+    logging.debug(sqlstr)
+    cursor.execute(sqlstr)
+    # print content
+    row = cursor.fetchone()
+    try:
+        pg_idx = int(row[0])
+        pg_url = row[1]
+        logging.info("File %s indexed as %d", file_name, pg_idx)
+    except TypeError:
+        pg_idx = -1
+        pg_url = None
+        logging.info("File %s not indexed yet", file_name)
+    cursor.close()
+    # db_conn.commit()
+    return pg_idx, pg_url
+
+
+def write_word_pages(pages, words_list, output_path, link_path,
+                     index_path="."):
     """
     Read page info.
     """
@@ -94,6 +173,9 @@ def write_word_pages(pages, output_path, link_path, index_path="."):
     prev_idx = ""
     widx = None
     for the_word in pages:
+        if the_word not in words_list:
+            logging.debug("Skip '%s'", the_word)
+            continue
         this_idx = the_word[0].upper()
         if  this_idx != prev_idx:
             if widx is not None:
@@ -105,7 +187,7 @@ def write_word_pages(pages, output_path, link_path, index_path="."):
             widx = open(widx_file, "w", encoding="utf-8")
             widx.write(f"{HTML4_DOCTYPE}\n")
             widx.write(f"<html>\n<head>\n<title>Index {this_idx}</title>\n</head>\n<body>\n")
-            widx.write(f'<a href="{widx_file}">{this_idx}</a><br/>\n')
+            widx.write(f'<h2">{this_idx}</h2><br/>\n')
         prev_idx = this_idx
         output_file = output_path + f"/{the_word}.html"
         widx.write(f'<a href="./{the_word}.html" target="pages">{the_word}</a><br/>\n')
@@ -114,13 +196,15 @@ def write_word_pages(pages, output_path, link_path, index_path="."):
         outf = open(output_file, "w", encoding="utf-8")
         outf.write(f"{HTML4_DOCTYPE}\n")
         outf.write("<html>\n<head>\n<title>{the_word}</title>\n</head>\n<body>\n")
-        outf.write(f"<h2>{the_word}</h2>")
+        outf.write(f"<h2>{the_word}</h2>\n<ul>\n")
         for page_info in pages[the_word]:
             page_title = page_info[0]
             page_file = page_info[1]
-            link = link_path + f"/{page_file}"
-            outf.write(f'<a href="{link}" target="page">{page_title}</a><br/>\n')
-        outf.write("</body></html>\n")
+            link = link_path \
+                + f"{page_file.replace('/var/www/html/skao_news/www.skao.int', '')}"
+            outf.write(f'<li><a href="{link}" target="page">{page_title}</a></li>\n')
+            bk_idx = get_page_index(db_conn, page_file)
+        outf.write("</ul>\n</body></html>\n")
         outf.write("\n")
         outf.close()
     logging.info(f"Wrote {len(pages)} files")
@@ -146,7 +230,9 @@ def run_build(db_conn, idx_actn, remainder):
         r_val = print_word_pages(pages)
     elif idx_actn["write_pages"]:
         pages = get_page_titles(db_conn)
-        r_val = write_word_pages(pages, "./builder", "..")
+        words_list = get_words_list(db_conn, 2)
+        r_val = write_word_pages(pages, words_list, f"{HTML_DIR}/builder",
+                                 "/skao_news/pages")
     else:
         logging.error("Nothing to do")
         return 1

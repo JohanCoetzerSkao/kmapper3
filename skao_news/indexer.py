@@ -16,6 +16,8 @@ from iso639 import languages
 from langdetect import detect, DetectorFactory, lang_detect_exception
 from nltk.corpus import stopwords
 
+HTML4_DOCTYPE = '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd"l>'
+
 # connection parameters
 conn_params = {
     "user": "root",
@@ -218,20 +220,23 @@ def get_page_index(db_conn, file_name):
     """
     logging.debug("Get index for file '%s'", file_name)
     cursor = db_conn.cursor()
-    sqlstr = f"SELECT page_id FROM pages WHERE page_file='{file_name}';"
+    sqlstr = "SELECT page_id, page_url" \
+        f" FROM pages WHERE page_file='{file_name}';"
     logging.debug(sqlstr)
     cursor.execute(sqlstr)
     # print content
     row = cursor.fetchone()
     try:
         pg_idx = int(row[0])
+        pg_url = row[1]
         logging.info("File %s indexed as %d", file_name, pg_idx)
     except TypeError:
         pg_idx = -1
+        pg_url = None
         logging.info("File %s not indexed yet", file_name)
     cursor.close()
     # db_conn.commit()
-    return pg_idx
+    return pg_idx, pg_url
 
 
 def index_page(db_conn, file_name):
@@ -257,8 +262,35 @@ def index_page(db_conn, file_name):
     return page_id
 
 
+def get_page_words(db_conn, bk_idx, words_list):
+    """
+    Clear indexed words.
+
+    :param db_conn: database connection handle
+    :bk_idx: page index number
+    """
+    logging.info("Read words for page %d", bk_idx)
+    cursor = db_conn.cursor()
+    sqlstr = "SELECT the_word FROM words WHERE word_id IN" \
+        f" (SELECT DISTINCT word_id FROM pages_words WHERE page_id={bk_idx});"
+    logging.debug(sqlstr)
+    cursor.execute(sqlstr)
+    row = cursor.fetchone()
+    words = []
+    while row:
+        word = row[0]
+        word_file = f"/var/www/html/skao_news/builder/{word}.html"
+        # logging.debug("Check word %s file: %s", word, word_file)
+        if os.path.isfile(word_file) and word in words_list:
+            logging.debug("Add word %s file: %s", word, word_file)
+            words.append(row[0])
+        row = cursor.fetchone()
+    logging.info("Found words: %s", ','.join(words))
+    return words
+
+
 # pylint: disable-next=too-many-locals
-def read_book_data(db_conn, sp_data, stop_words, wn_lemma, bk_idx):
+def read_page_data(db_conn, sp_data, stop_words, wn_lemma, bk_idx):
     """
     Read body text extracted from web page
     """
@@ -317,6 +349,130 @@ def read_book_data(db_conn, sp_data, stop_words, wn_lemma, bk_idx):
     return keywords, all_data
 
 
+# pylint: disable-next=too-many-arguments,too-many-locals
+def write_page_file(db_conn, stop_words, wn_lemma, file_name, bk_url, bk_xpath,
+                    bk_xclass, bk_idx, words_list):
+    """
+    Read the document.
+
+    :param db_conn: database connection handle
+    :param db_conn
+    :stop_words: list of stop words
+    :wn_lemma: WordNet lemmatizer handle
+    :file_name: input file name
+    :bk_idx: page index number
+    :bk_xpath: Xpath string
+    :bk_xclass: class associated with Xpath
+    """
+    logging.debug("Read file %s [%s/%s]", file_name, bk_xpath, bk_xclass)
+    out_file = file_name.replace("www.skao.int", "pages")
+    out_dir = os.path.dirname(out_file)
+    if not os.path.exists(out_dir):
+        logging.info("Create directory %s", out_dir)
+        os.makedirs(out_dir)
+    logging.info("Write file %s", out_file)
+    f_out = open(out_file, "w", encoding="utf-8")
+    f_out.write(f"{HTML4_DOCTYPE}\n")
+    f_out.write("<html>\n<head>\n")
+    with open(file_name, "r", encoding="utf-8") as f_bk:
+        html_data = f_bk.read()
+    soup = BeautifulSoup(html_data, 'html.parser')
+    # Get title
+    bk_title = ""
+    soup1 = soup.find_all("title", class_=None)
+    for sp_data in soup1:
+        bk_title = re.sub('<[^<]+?>', '', str(sp_data))
+    logging.info("Title is %s", bk_title)
+    f_out.write(f"<title>{bk_title}</title>\n</head>\n<body>\n")
+    if bk_url:
+        f_out.write(f'<p><a href="{bk_url}">SKAO news article<a></p><hr/>\n')
+    page_words = get_page_words(db_conn, bk_idx, words_list)
+    for word in sorted(page_words):
+        link = f"/skao_news/builder/{word}.html"
+        f_out.write(f'<a href="{link}" target="pages">{word}</a>&nbsp;\n')
+    f_out.write(f"<h2>{bk_title}</h2>\n")
+    # Get the rest
+    # soup2 = soup.find_all("p", class_=None)
+    soup2 = soup.find_all(bk_xpath, class_=bk_xclass)
+    keywords = {}
+    # all_data = ""
+    for sp_data in soup2:
+        logging.debug(sp_data)
+        # all_data += str(sp_data)
+        f_out.write(f"{str(sp_data)}\n")
+    f_out.write("</body>\n</html>\n")
+    f_out.close()
+    # print(f"{all_data}")
+
+
+def write_files(db_conn, file_name, bk_xpath, bk_xclass):
+    """
+    Read downloaded pages
+
+    :param db_conn: database connection handle
+    :param file_name: input file name or path
+    :param bk_xpath: Xpath to select from body
+    :param bk_xclass: class associated with Xpath
+    :return: zero
+    """
+    logging.debug("Write files: %s", file_name)
+    # Initialize natural language processing
+    nltk.download('wordnet')
+    nltk.download('stopwords')
+    nltk.download('punkt')
+    nltk.download('omw-1.4')
+    nltk.download('averaged_perceptron_tagger')
+    # Get stop words
+    stop_words = set(stopwords.words('english'))
+    logging.info("Loaded %d stop words", len(stop_words))
+    logging.debug("STOP: %s", stop_words)
+    _porter_stemmer = nltk.stem.porter.PorterStemmer()  # noqa: F841
+    wn_lemma = nltk.stem.WordNetLemmatizer()
+    words_list = get_list_words(db_conn, 2, 0)
+    if '*' in file_name:
+        logging.info("Write from path %s", file_name)
+        n_files = 0
+        for f_name in glob.iglob(file_name, recursive=True):
+            if os.path.isdir(f_name):
+                continue
+            logging.info("Read file %s", f_name)
+            bk_idx, bk_url = get_page_index(db_conn, f_name)
+            if bk_idx <= 0:
+                bk_idx = index_page(db_conn, f_name)
+            write_page_file(db_conn, stop_words, wn_lemma, f_name, bk_url,
+                            bk_xpath, bk_xclass, bk_idx, words_list)
+            n_files += 1
+        logging.info("Wrote %d files", n_files)
+    elif os.path.isfile(file_name):
+        # One file only
+        logging.info("Write from file %s", file_name)
+        bk_idx, bk_url = get_page_index(db_conn, file_name)
+        if bk_idx <= 0:
+            bk_idx = index_page(db_conn, file_name)
+        write_page_file(db_conn, stop_words, wn_lemma, file_name, bk_url,
+                        bk_xpath, bk_xclass, bk_idx, words_list)
+        logging.info("Processed file %s", file_name)
+    elif os.path.isdir(file_name):
+        # All the files
+        n_files = 0
+        root_dir = file_name + '/**/*.html'
+        logging.info("Write from directory %s", root_dir)
+        for f_name in glob.iglob(root_dir, recursive=True):
+            if os.path.isdir(f_name):
+                continue
+            logging.info("Write from file %s", file_name)
+            bk_idx, bk_url = get_page_index(db_conn, f_name)
+            if bk_idx <= 0:
+                bk_idx = index_page(db_conn, f_name)
+            write_page_file(db_conn, stop_words, wn_lemma, f_name, bk_url,
+                            bk_xpath, bk_xclass, bk_idx, words_list)
+            n_files += 1
+        logging.info("Wrote %d files", n_files)
+    else:
+        logging.error("File name %s is not valid", file_name)
+    return 0
+
+
 def clear_pages_words(db_conn, bk_idx):
     """
     Clear indexed words.
@@ -332,6 +488,21 @@ def clear_pages_words(db_conn, bk_idx):
     db_conn.commit()
 
 
+def get_pages_words(db_conn, bk_idx):
+    """
+    Clear indexed words.
+
+    :param db_conn: database connection handle
+    :bk_idx: page index number
+    """
+    logging.info("Clear index for page %d", bk_idx)
+    cursor = db_conn.cursor()
+    sqlstr = f"SELECT the_word FROM pages_words WHERE page_id={bk_idx};"
+    logging.debug(sqlstr)
+    cursor.execute(sqlstr)
+    db_conn.commit()
+
+
 def clear_all(db_conn):
     """
     Clear indexes.
@@ -342,6 +513,7 @@ def clear_all(db_conn):
     logging.info("Clear all indexes")
     cursor = db_conn.cursor()
     for sqlstr in ["DELETE FROM pages_words;",
+                   "DELETE FROM page_words;",
                    "DELETE FROM pages;",
                    "DELETE FROM words;"]:
         logging.debug(sqlstr)
@@ -361,6 +533,7 @@ def get_stats(db_conn):
     cursor = db_conn.cursor()
     sqlstrs = {"pages": "SELECT count(page_id) FROM pages;",
                "words": "SELECT count(word_id) FROM words;",
+               "page_words": "SELECT count(word_pos) FROM page_words;",
                "pages_words": "SELECT count(word_pos) FROM pages_words;"}
     # pylint: disable-next=consider-using-dict-items
     for table_name in sqlstrs:
@@ -375,7 +548,7 @@ def get_stats(db_conn):
 
 
 # pylint: disable-next=too-many-arguments,too-many-locals
-def read_book(db_conn, stop_words, wn_lemma, file_name, bk_idx,
+def read_page(db_conn, stop_words, wn_lemma, file_name, bk_idx,
               bk_xpath, bk_xclass):
     """
     Read the document.
@@ -406,9 +579,8 @@ def read_book(db_conn, stop_words, wn_lemma, file_name, bk_idx,
     keywords = {}
     all_data = ""
     for sp_data in soup2:
-        keywords, book_data = read_book_data(
-            db_conn, sp_data, stop_words, wn_lemma, bk_idx
-        )
+        keywords, book_data = read_page_data(db_conn, sp_data, stop_words,
+                                             wn_lemma, bk_idx)
         all_data += book_data
     logging.info("Found %d keywords", len(keywords))
     # pylint: disable-next=consider-using-dict-items
@@ -426,6 +598,38 @@ def read_book(db_conn, stop_words, wn_lemma, file_name, bk_idx,
         logging.warning("No data extracted")
     cursor.close()
     db_conn.commit()
+
+
+def get_list_words(db_conn, wc_min, wc_max):
+    """
+    Display index for words.
+
+    :param db_conn: database connection handle
+    :param wc_min: minimum word count
+    :param wc_max: maximum word count
+    :return: list of words
+    """
+    logging.debug("List words: minimum %d, maximum %d", wc_min, wc_max)
+    cursor = db_conn.cursor()
+    sqlstr = "select words.the_word, count(pages_words.word_pos)" \
+        " as word_count" \
+        " from words, pages_words" \
+        " where pages_words.word_id = words.word_id" \
+        " group by pages_words.word_pos"
+    logging.debug(sqlstr)
+    cursor.execute(sqlstr)
+    words_list = []
+    for word, w_count in cursor:
+        show_it = True
+        if wc_min and w_count <= wc_min:
+            show_it = False
+        if wc_max and w_count >= wc_max:
+            show_it = False
+        if show_it:
+            logging.debug("Add word %d : %s", int(w_count), word)
+            words_list.append(word)
+    cursor.close()
+    return words_list
 
 
 def list_words(db_conn, wc_min, wc_max):
@@ -516,7 +720,7 @@ def read_files(db_conn, file_name, bk_xpath, bk_xclass):
             bk_idx = get_page_index(db_conn, f_name)
             if bk_idx <= 0:
                 bk_idx = index_page(db_conn, f_name)
-            read_book(db_conn, stop_words, wn_lemma, f_name, bk_idx, bk_xpath,
+            read_page(db_conn, stop_words, wn_lemma, f_name, bk_idx, bk_xpath,
                       bk_xclass)
             n_files += 1
         logging.info("Read %d files", n_files)
@@ -526,10 +730,8 @@ def read_files(db_conn, file_name, bk_xpath, bk_xclass):
         bk_idx = get_page_index(db_conn, file_name)
         if bk_idx <= 0:
             bk_idx = index_page(db_conn, file_name)
-        read_book(
-            db_conn, stop_words, wn_lemma, file_name, bk_idx, bk_xpath,
-            bk_xclass
-        )
+        read_page(db_conn, stop_words, wn_lemma, file_name, bk_idx, bk_xpath,
+                  bk_xclass)
         logging.info("Read file %s", file_name)
     elif os.path.isdir(file_name):
         # All the files
@@ -543,7 +745,7 @@ def read_files(db_conn, file_name, bk_xpath, bk_xclass):
             bk_idx = get_page_index(db_conn, f_name)
             if bk_idx <= 0:
                 bk_idx = index_page(db_conn, f_name)
-            read_book(db_conn, stop_words, wn_lemma, f_name, bk_idx, bk_xpath,
+            read_page(db_conn, stop_words, wn_lemma, f_name, bk_idx, bk_xpath,
                       bk_xclass)
             n_files += 1
         logging.info("Read %d files", n_files)
@@ -617,6 +819,10 @@ def run_index(db_conn, idx_actn, remainder):
     elif idx_actn["f_url"]:
         file_name = remainder[0]
         r_val = set_page_url(db_conn, file_name, idx_actn["f_url"])
+    elif idx_actn["wrt_html"]:
+        file_name = remainder[0]
+        r_val = write_files(db_conn, file_name, idx_actn["bk_xpath"],
+                            idx_actn["bk_xclass"])
     else:
         # Analyze files
         try:
@@ -673,12 +879,13 @@ def main():
             sys.argv[1:],
             "hlid:cfpu:",
             ["path=", "class=", "url=", "min=", "max=", "find=", "list",
-             "clear", "stats", "info", "debug"]
+             "write", "clear", "stats", "info", "debug"]
         )
     except getopt.GetoptError as opt_err:
         usage_short(sys.argv[0], str(opt_err))
         return 1
     idx_actn = {"lst_wrds": False,
+                "wrt_html": False,
                 "clr_idx": False,
                 "lst_stat": False,
                 "wc_min": 0,
@@ -706,6 +913,8 @@ def main():
             idx_actn["wc_max"] = int(arg)
         elif opt in ("-l", "--list"):
             idx_actn["lst_wrds"] = True
+        elif opt == "--write":
+            idx_actn["wrt_html"] = True
         elif opt == "--stats":
             idx_actn["lst_stat"] = True
         elif opt == "--clear":
