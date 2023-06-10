@@ -373,7 +373,7 @@ def write_page_file(db_conn, stop_words, wn_lemma, file_name, bk_url, bk_xpath,
     logging.info("Write file %s", out_file)
     f_out = open(out_file, "w", encoding="utf-8")
     f_out.write(f"{HTML4_DOCTYPE}\n")
-    f_out.write("<html>\n<head>\n")
+    f_out.write('<html>\n<head>\n<meta charset="utf-8"/>')
     with open(file_name, "r", encoding="utf-8") as f_bk:
         html_data = f_bk.read()
     soup = BeautifulSoup(html_data, 'html.parser')

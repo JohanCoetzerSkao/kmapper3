@@ -55,7 +55,7 @@ def get_words_list(db_conn, wc_min=0, wc_max=0):
             show_it = False
         if show_it:
             print(f"{int(w_count):3d} : {word}")
-            logging.info("Index %d (%d)", word, w_count)
+            logging.info("Index %s (%d)", word, w_count)
             words.append(word)
     cursor.close()
     return words
@@ -158,7 +158,7 @@ def get_page_index(db_conn, file_name):
     return pg_idx, pg_url
 
 
-def write_word_pages(pages, words_list, output_path, link_path,
+def write_word_pages(db_conn, pages, words_list, output_path, link_path,
                      index_path="."):
     """
     Read page info.
@@ -167,7 +167,7 @@ def write_word_pages(pages, words_list, output_path, link_path,
     logging.info("Write index %s", idx_file)
     idxf = open(idx_file, "w", encoding="utf-8")
     idxf.write(f"{HTML4_DOCTYPE}\n")
-    idxf.write("<html>\n<head>\n<title>Index</title>\n</head>\n<body>\n")
+    idxf.write('<html>\n<head>\n<meta charset="utf-8"/>\n<title>Index</title>\n</head>\n<body>\n')
     idxf.write("<h2>Index</h2>\n")
     logging.debug("Write titles for files to '%s'", output_path)
     prev_idx = ""
@@ -186,7 +186,7 @@ def write_word_pages(pages, words_list, output_path, link_path,
             logging.info("Index for '%s' : %s", this_idx, widx_file)
             widx = open(widx_file, "w", encoding="utf-8")
             widx.write(f"{HTML4_DOCTYPE}\n")
-            widx.write(f"<html>\n<head>\n<title>Index {this_idx}</title>\n</head>\n<body>\n")
+            widx.write(f'<html>\n<head>\n<meta charset="utf-8"/>\n<title>Index {this_idx}</title>\n</head>\n<body>\n')
             widx.write(f'<h2">{this_idx}</h2><br/>\n')
         prev_idx = this_idx
         output_file = output_path + f"/{the_word}.html"
@@ -195,7 +195,7 @@ def write_word_pages(pages, words_list, output_path, link_path,
         logging.info("Write file %s", output_file)
         outf = open(output_file, "w", encoding="utf-8")
         outf.write(f"{HTML4_DOCTYPE}\n")
-        outf.write("<html>\n<head>\n<title>{the_word}</title>\n</head>\n<body>\n")
+        outf.write('<html>\n<head>\n<meta charset="utf-8"/>\n<title>{the_word}</title>\n</head>\n<body>\n')
         outf.write(f"<h2>{the_word}</h2>\n<ul>\n")
         for page_info in pages[the_word]:
             page_title = page_info[0]
@@ -231,7 +231,7 @@ def run_build(db_conn, idx_actn, remainder):
     elif idx_actn["write_pages"]:
         pages = get_page_titles(db_conn)
         words_list = get_words_list(db_conn, 2)
-        r_val = write_word_pages(pages, words_list, f"{HTML_DIR}/builder",
+        r_val = write_word_pages(db_conn, pages, words_list, f"{HTML_DIR}/builder",
                                  "/skao_news/pages")
     else:
         logging.error("Nothing to do")
