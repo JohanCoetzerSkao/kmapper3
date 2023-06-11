@@ -16,10 +16,9 @@ from iso639 import languages
 from langdetect import detect, DetectorFactory, lang_detect_exception
 from nltk.corpus import stopwords
 
-HTML4_DOCTYPE = '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd"l>'
-MIN_WORD_COUNT = 3
-MAX_WORD_COUNT = 10
-MIN_WORD_LEN = 5
+from skao_news_config.default import HTML4_DOCTYPE, HTML_DIR, MIN_WORD_COUNT, \
+    MAX_WORD_COUNT, MIN_WORD_LEN
+
 
 # connection parameters
 conn_params = {

@@ -64,8 +64,11 @@ Index pages one at a time
 
 Index all pages in directory
 
-`./indexer.py www.skao.int/en/news/`
+`./indexer.py --write /var/www/html/skao_news/www.skao.int/en/news/ --info`
 
-Index all pages
 
-`./books.py`
+Build index
+
+`./builder.py --write --inf /var/www/html/skao_news/www.skao.int/en/news/`
+
+
