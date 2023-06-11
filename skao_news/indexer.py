@@ -17,6 +17,9 @@ from langdetect import detect, DetectorFactory, lang_detect_exception
 from nltk.corpus import stopwords
 
 HTML4_DOCTYPE = '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd"l>'
+MIN_WORD_COUNT = 3
+MAX_WORD_COUNT = 10
+MIN_WORD_LEN = 5
 
 # connection parameters
 conn_params = {
@@ -386,26 +389,39 @@ def write_page_file(db_conn, stop_words, wn_lemma, file_name, bk_url, bk_xpath,
     f_out.write(f"<title>{bk_title}</title>\n</head>\n<body>\n")
     if bk_url:
         f_out.write(f'<p><a href="{bk_url}">SKAO news article<a></p><hr/>\n')
-    page_words = get_page_words(db_conn, bk_idx, words_list)
-    for word in sorted(page_words):
-        link = f"/skao_news/builder/{word}.html"
-        f_out.write(f'<a href="{link}" target="pages">{word}</a>&nbsp;\n')
     f_out.write(f"<h2>{bk_title}</h2>\n")
     # Get the rest
     # soup2 = soup.find_all("p", class_=None)
     soup2 = soup.find_all(bk_xpath, class_=bk_xclass)
     keywords = {}
-    # all_data = ""
+    all_data = ""
     for sp_data in soup2:
         logging.debug(sp_data)
-        # all_data += str(sp_data)
-        f_out.write(f"{str(sp_data)}\n")
+        # Remove HTML tags
+        all_data += "<p>"
+        all_data += re.sub('<[^<]+?>', '', str(sp_data))
+        all_data += "</p>\n"
+    # Get words to be tagged/linked
+    page_words = get_page_words(db_conn, bk_idx, words_list)
+    for word in page_words:
+        link = f'<a href ="/skao_news/builder/{word}.html" target="pages">{word}</a>'
+        word_upper = word.upper()
+        link_upper = f'<a href ="/skao_news/builder/{word}.html" target="pages">{word_upper}</a>'
+        word_name = word[0].upper() + word[1:]
+        link_name = f'<a href ="/skao_news/builder/{word}.html" target="pages">{word_name}</a>'
+        all_data = all_data.replace(word, link)
+        all_data = all_data.replace(word_upper, link_upper)
+        all_data = all_data.replace(word_name, link_name)
+    f_out.write(f"{str(all_data)}\n<hr/>\n")
+    for word in sorted(page_words):
+        link = f"/skao_news/builder/{word}.html"
+        f_out.write(f'<a href="{link}" target="pages">{word}</a>&nbsp;\n')
     f_out.write("</body>\n</html>\n")
     f_out.close()
     # print(f"{all_data}")
 
 
-def write_files(db_conn, file_name, bk_xpath, bk_xclass):
+def write_files(db_conn, file_name, idx_actn):
     """
     Read downloaded pages
 
@@ -416,6 +432,11 @@ def write_files(db_conn, file_name, bk_xpath, bk_xclass):
     :return: zero
     """
     logging.debug("Write files: %s", file_name)
+    bk_xpath = idx_actn["bk_xpath"]
+    bk_xclass = idx_actn["bk_xclass"]
+    wc_min = idx_actn["wc_min"]
+    wc_max = idx_actn["wc_max"]
+    word_len = idx_actn["word_len"]
     # Initialize natural language processing
     nltk.download('wordnet')
     nltk.download('stopwords')
@@ -428,7 +449,7 @@ def write_files(db_conn, file_name, bk_xpath, bk_xclass):
     logging.debug("STOP: %s", stop_words)
     _porter_stemmer = nltk.stem.porter.PorterStemmer()  # noqa: F841
     wn_lemma = nltk.stem.WordNetLemmatizer()
-    words_list = get_list_words(db_conn, 2, 0)
+    words_list = get_list_words(db_conn, wc_min, wc_max, word_len)
     if '*' in file_name:
         logging.info("Write from path %s", file_name)
         n_files = 0
@@ -600,7 +621,7 @@ def read_page(db_conn, stop_words, wn_lemma, file_name, bk_idx,
     db_conn.commit()
 
 
-def get_list_words(db_conn, wc_min, wc_max):
+def get_list_words(db_conn, wc_min, wc_max, word_len):
     """
     Display index for words.
 
@@ -625,6 +646,8 @@ def get_list_words(db_conn, wc_min, wc_max):
             show_it = False
         if wc_max and w_count >= wc_max:
             show_it = False
+        if len(word) < word_len:
+            show_it = False
         if show_it:
             logging.debug("Add word %d : %s", int(w_count), word)
             words_list.append(word)
@@ -632,7 +655,7 @@ def get_list_words(db_conn, wc_min, wc_max):
     return words_list
 
 
-def list_words(db_conn, wc_min, wc_max):
+def list_words(db_conn, wc_min, wc_max, word_len):
     """
     Display index for words.
 
@@ -655,6 +678,8 @@ def list_words(db_conn, wc_min, wc_max):
         if wc_min and w_count <= wc_min:
             show_it = False
         if wc_max and w_count >= wc_max:
+            show_it = False
+        if len(word) < word_len:
             show_it = False
         if show_it:
             print(f"{int(w_count):3d} : {word}")
@@ -811,7 +836,8 @@ def run_index(db_conn, idx_actn, remainder):
     if idx_actn["clr_idx"]:
         r_val = clear_all(db_conn)
     elif idx_actn["lst_wrds"]:
-        r_val = list_words(db_conn, idx_actn["wc_min"], idx_actn["wc_max"])
+        r_val = list_words(db_conn, idx_actn["wc_min"], idx_actn["wc_max"],
+                           idx_actn["word_len"])
     elif idx_actn["lst_stat"]:
         r_val = get_stats(db_conn)
     elif idx_actn["f_word"]:
@@ -821,8 +847,7 @@ def run_index(db_conn, idx_actn, remainder):
         r_val = set_page_url(db_conn, file_name, idx_actn["f_url"])
     elif idx_actn["wrt_html"]:
         file_name = remainder[0]
-        r_val = write_files(db_conn, file_name, idx_actn["bk_xpath"],
-                            idx_actn["bk_xclass"])
+        r_val = write_files(db_conn, file_name, idx_actn)
     else:
         # Analyze files
         try:
@@ -878,8 +903,8 @@ def main():
         options, remainder = getopt.gnu_getopt(
             sys.argv[1:],
             "hlid:cfpu:",
-            ["path=", "class=", "url=", "min=", "max=", "find=", "list",
-             "write", "clear", "stats", "info", "debug"]
+            ["path=", "class=", "url=", "min=", "max=", "find=", "length=",
+             "list", "write", "clear", "stats", "info", "debug"]
         )
     except getopt.GetoptError as opt_err:
         usage_short(sys.argv[0], str(opt_err))
@@ -888,8 +913,9 @@ def main():
                 "wrt_html": False,
                 "clr_idx": False,
                 "lst_stat": False,
-                "wc_min": 0,
-                "wc_max": 0,
+                "wc_min": MIN_WORD_COUNT,
+                "wc_max": MAX_WORD_COUNT,
+                "word_len": MIN_WORD_LEN,
                 "f_word": None,
                 "f_url": None,
                 "bk_xpath": "p",
@@ -911,6 +937,8 @@ def main():
             idx_actn["wc_min"] = int(arg)
         elif opt == "--max":
             idx_actn["wc_max"] = int(arg)
+        elif opt == "--length":
+            idx_actn["word_len"] = int(arg)
         elif opt in ("-l", "--list"):
             idx_actn["lst_wrds"] = True
         elif opt == "--write":

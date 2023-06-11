@@ -18,6 +18,9 @@ import mariadb
 
 HTML4_DOCTYPE = '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd"l>'
 HTML_DIR = "/var/www/html/skao_news"
+MIN_WORD_COUNT = 3
+MAX_WORD_COUNT = 10
+MIN_WORD_LEN = 5
 
 # connection parameters
 conn_params = {
@@ -28,7 +31,7 @@ conn_params = {
 }
 
 
-def get_words_list(db_conn, wc_min=0, wc_max=0):
+def get_words_list(db_conn, wc_min, wc_max, word_len):
     """
     Display index for words.
 
@@ -52,6 +55,8 @@ def get_words_list(db_conn, wc_min=0, wc_max=0):
         if wc_min and w_count <= wc_min:
             show_it = False
         if wc_max and w_count >= wc_max:
+            show_it = False
+        if len(word) < word_len:
             show_it = False
         if show_it:
             print(f"{int(w_count):3d} : {word}")
@@ -230,7 +235,8 @@ def run_build(db_conn, idx_actn, remainder):
         r_val = print_word_pages(pages)
     elif idx_actn["write_pages"]:
         pages = get_page_titles(db_conn)
-        words_list = get_words_list(db_conn, 2)
+        words_list = get_words_list(db_conn, idx_actn["wc_min"],
+                                    idx_actn["wc_max"], idx_actn["word_len"])
         r_val = write_word_pages(db_conn, pages, words_list, f"{HTML_DIR}/builder",
                                  "/skao_news/pages")
     else:
@@ -272,14 +278,17 @@ def main():
         options, remainder = getopt.gnu_getopt(
             sys.argv[1:],
             "hlid:cfpu:",
-            ["path=", "class=", "url=", "min=", "max=", "find=", "title",
-             "write", "stats", "info", "debug"]
+            ["path=", "class=", "url=", "min=", "max=", "find=", "length=",
+             "title", "write", "stats", "info", "debug"]
         )
     except getopt.GetoptError as opt_err:
         usage_short(sys.argv[0], str(opt_err))
         return 1
     idx_actn = {"lst_titls": False,
-                "write_pages": False,}
+                "write_pages": False,
+                "wc_min": MIN_WORD_COUNT,
+                "wc_max": MAX_WORD_COUNT,
+                "word_len": MIN_WORD_LEN}
     for opt, arg in options:
         if opt == '-h':
             usage(sys.argv[0])
@@ -288,6 +297,12 @@ def main():
             idx_actn["lst_titls"] = True
         elif opt in ("-l", "--write"):
             idx_actn["write_pages"] = True
+        elif opt == "--min":
+            idx_actn["wc_min"] = int(arg)
+        elif opt == "--max":
+            idx_actn["wc_max"] = int(arg)
+        elif opt == "--length":
+            idx_actn["word_len"] = int(arg)
         elif opt in ("-i", "--info"):
             log_level = logging.INFO
         elif opt in ("-d", "--debug"):
