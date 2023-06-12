@@ -402,12 +402,16 @@ def write_page_file(db_conn, stop_words, wn_lemma, file_name, bk_url, bk_xpath,
         all_data += "</p>\n"
     # Get words to be tagged/linked
     page_words = get_page_words(db_conn, bk_idx, words_list)
+    page_links = []
     for word in page_words:
-        link = f'<a href ="/skao_news/builder/{word}.html" target="pages">{word}</a>'
+        if word not in page_links:
+            page_links.append(word)
+            word_link = f' id ="{word}"'
+        link = f'<a{word_link} href ="/skao_news/builder/{word}.html" target="pages">{word}</a>'
         word_upper = word.upper()
-        link_upper = f'<a href ="/skao_news/builder/{word}.html" target="pages">{word_upper}</a>'
+        link_upper = f'<a{word_link} href ="/skao_news/builder/{word}.html" target="pages">{word_upper}</a>'
         word_name = word[0].upper() + word[1:]
-        link_name = f'<a href ="/skao_news/builder/{word}.html" target="pages">{word_name}</a>'
+        link_name = f'<a{word_link} href ="/skao_news/builder/{word}.html" target="pages">{word_name}</a>'
         all_data = all_data.replace(word, link)
         all_data = all_data.replace(word_upper, link_upper)
         all_data = all_data.replace(word_name, link_name)

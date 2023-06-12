@@ -205,7 +205,7 @@ def write_word_pages(db_conn, pages, words_list, output_path, link_path,
             page_file = page_info[1]
             link = link_path \
                 + f"{page_file.replace('/var/www/html/skao_news/www.skao.int', '')}"
-            outf.write(f'<li><a href="{link}" target="page">{page_title}</a></li>\n')
+            outf.write(f'<li><a href="{link}#{the_word}" target="page">{page_title}</a></li>\n')
             bk_idx = get_page_index(db_conn, page_file)
         outf.write("</ul>\n</body></html>\n")
         outf.write("\n")
